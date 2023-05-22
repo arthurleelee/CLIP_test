@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu" # If using GPU then use mixed precision training.
 model, preprocess = clip.load("ViT-L/14",device=device,jit=False) #Must set jit=False for training
-BATCH_SIZE = 16
+BATCH_SIZE = 8
 EPOCH = 120
 
 class image_title_dataset(Dataset):
@@ -43,7 +43,7 @@ remove_index.reverse()
 for i in remove_index:
   list_image_path.pop(i)
   list_txt.pop(i)
-dataset = image_title_dataset(list_image_path, list_txt)
+dataset = image_title_dataset(list_image_path[:1000], list_txt[:1000])
 train_dataloader = DataLoader(dataset, batch_size = BATCH_SIZE) #Define your own dataloader
 
 #https://github.com/openai/CLIP/issues/57
