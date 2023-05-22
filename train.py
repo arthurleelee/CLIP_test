@@ -10,8 +10,8 @@ from tqdm import tqdm
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu" # If using GPU then use mixed precision training.
 model, preprocess = clip.load("ViT-L/14",device=device,jit=False) #Must set jit=False for training
-BATCH_SIZE = 8
-EPOCH = 8
+BATCH_SIZE = 16
+EPOCH = 120
 
 class image_title_dataset(Dataset):
     def __init__(self, list_image_path, list_txt):
@@ -28,10 +28,11 @@ class image_title_dataset(Dataset):
         return image, title
 
 # use your own data
-image_file_list = [file_name for file_name in os.listdir("/home/arthur/Downloads/KITTI_DATASET_ROOT/training/image_2/")]
+kitti_image_file_path = "../kitti/training/image_2/"
+image_file_list = [file_name for file_name in os.listdir(kitti_image_file_path)]
 image_file_list.sort()
-list_image_path = ["/home/arthur/Downloads/KITTI_DATASET_ROOT/training/image_2/" + i for i in image_file_list]
-with open("/home/arthur/Downloads/KITTI_DATASET_ROOT/training/label_2_sentence.csv", 'r', newline="") as sentence_file:
+list_image_path = [kitti_image_file_path + i for i in image_file_list]
+with open("./label_2_sentence.csv", 'r', newline="") as sentence_file:
   rows = csv.reader(sentence_file)
   list_txt = [row[1] for row in rows]
 remove_index = []
