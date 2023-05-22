@@ -86,7 +86,7 @@ for epoch in range(EPOCH):
         optimizer.step()
         clip.model.convert_weights(model)
 
-image = preprocess(Image.open("/home/arthur/Downloads/KITTI_DATASET_ROOT/training/image_2/000001.png")).unsqueeze(0).to(device)
+image = preprocess(Image.open(kitti_image_file_path + "/000001.png")).unsqueeze(0).to(device)
 text = clip.tokenize(["There are 1 car and 1 truck in the image.", "There is 1 car in the image.", "There is 1 truck in the image."]).to(device)
 model.eval()
 with torch.no_grad():
