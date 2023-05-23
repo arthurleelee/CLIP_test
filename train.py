@@ -67,10 +67,8 @@ def set_random_seed(seed, deterministic=False):
 #https://github.com/openai/CLIP/issues/57
 def convert_models_to_fp32(model): 
     for p in model.parameters():
-        if p.requires_grad:
-            print(p)
-            p.data = p.data.float() 
-            p.grad.data = p.grad.data.float()
+        p.data = p.data.float() 
+        p.grad.data = p.grad.data.float()
 
 def get_args_parser():
     # Arguments
