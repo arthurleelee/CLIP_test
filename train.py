@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu" # If using GPU then use mixed precision training.
-model, preprocess = clip.load("ViT-L/14",device=device,jit=False) #Must set jit=False for training
+model, preprocess = clip.load("ViT-L/14", device=device, jit=False) #Must set jit=False for training
 BATCH_SIZE = 8
 EPOCH = 120
 
@@ -28,7 +28,7 @@ class image_title_dataset(Dataset):
         return image, title
 
 # use your own data
-kitti_image_file_path = "../kitti/training/image_2/"
+kitti_image_file_path = "../KITTI_DATASET_ROOT/training/image_2/"
 image_file_list = [file_name for file_name in os.listdir(kitti_image_file_path)]
 image_file_list.sort()
 list_image_path = [kitti_image_file_path + i for i in image_file_list]
@@ -60,7 +60,7 @@ else :
 
 loss_img = nn.CrossEntropyLoss()
 loss_txt = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=5e-5,betas=(0.9,0.98),eps=1e-6,weight_decay=0.2) #Params used from paper, the lr is smaller, more safe for fine tuning to new dataset
+optimizer = optim.Adam(model.parameters(), lr=5e-5, betas=(0.9,0.98), eps=1e-6, weight_decay=0.2) #Params used from paper, the lr is smaller, more safe for fine tuning to new dataset
 
 # add your own code to track the training progress.
 model.train()
@@ -68,14 +68,14 @@ for epoch in range(EPOCH):
   for batch in tqdm(train_dataloader) :
       optimizer.zero_grad()
 
-      images,texts = batch 
+      images, texts = batch 
     
-      images= images.to(device)
+      images = images.to(device)
       texts = texts.to(device)
     
       logits_per_image, logits_per_text = model(images, texts)
 
-      ground_truth = torch.arange(len(images),dtype=torch.long,device=device)
+      ground_truth = torch.arange(len(images), dtype=torch.long, device=device)
 
       total_loss = (loss_img(logits_per_image,ground_truth) + loss_txt(logits_per_text,ground_truth))/2
       total_loss.backward()

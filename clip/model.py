@@ -168,6 +168,27 @@ class QuickGELU(nn.Module):
     def forward(self, x: torch.Tensor):
         return x * torch.sigmoid(1.702 * x)
 
+"""
+class Adapter(nn.Module):
+    def __init__(self, D_features, mlp_ratio=0.25, act_layer=nn.GELU, skip_connect=True):
+        super().__init__()
+        self.skip_connect = skip_connect
+        D_hidden_features = int(D_features * mlp_ratio)
+        self.act = act_layer()
+        self.D_fc1 = nn.Linear(D_features, D_hidden_features)
+        self.D_fc2 = nn.Linear(D_hidden_features, D_features)
+        
+    def forward(self, x):
+        # x is (BT, HW+1, D)
+        xs = self.D_fc1(x)
+        xs = self.act(xs)
+        xs = self.D_fc2(xs)
+        if self.skip_connect:
+            x = x + xs
+        else:
+            x = xs
+        return x
+"""
 
 class ResidualAttentionBlock(nn.Module):
     def __init__(self, d_model: int, n_head: int, attn_mask: torch.Tensor = None):
@@ -175,6 +196,7 @@ class ResidualAttentionBlock(nn.Module):
 
         self.attn = nn.MultiheadAttention(d_model, n_head)
         self.ln_1 = LayerNorm(d_model)
+        #self.adapter = Adapter(d_model)
         self.mlp = nn.Sequential(OrderedDict([
             ("c_fc", nn.Linear(d_model, d_model * 4)),
             ("gelu", QuickGELU()),
@@ -188,6 +210,7 @@ class ResidualAttentionBlock(nn.Module):
         return self.attn(x, x, x, need_weights=False, attn_mask=self.attn_mask)[0]
 
     def forward(self, x: torch.Tensor):
+        #x = x + self.adapter(self.attention(self.ln_1(x)))
         x = x + self.attention(self.ln_1(x))
         x = x + self.mlp(self.ln_2(x))
         return x
