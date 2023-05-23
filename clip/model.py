@@ -168,7 +168,7 @@ class QuickGELU(nn.Module):
     def forward(self, x: torch.Tensor):
         return x * torch.sigmoid(1.702 * x)
 
-"""
+
 class Adapter(nn.Module):
     def __init__(self, D_features, mlp_ratio=0.25, act_layer=nn.GELU, skip_connect=True):
         super().__init__()
@@ -188,15 +188,16 @@ class Adapter(nn.Module):
         else:
             x = xs
         return x
-"""
+
 
 class ResidualAttentionBlock(nn.Module):
-    def __init__(self, d_model: int, n_head: int, attn_mask: torch.Tensor = None):
+    def __init__(self, d_model: int, n_head: int, adapter:bool, attn_mask: torch.Tensor = None):
         super().__init__()
 
         self.attn = nn.MultiheadAttention(d_model, n_head)
         self.ln_1 = LayerNorm(d_model)
-        #self.adapter = Adapter(d_model)
+        if adapter:
+            self.adapter = Adapter(d_model)
         self.mlp = nn.Sequential(OrderedDict([
             ("c_fc", nn.Linear(d_model, d_model * 4)),
             ("gelu", QuickGELU()),
@@ -217,18 +218,18 @@ class ResidualAttentionBlock(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, width: int, layers: int, heads: int, attn_mask: torch.Tensor = None):
+    def __init__(self, width: int, layers: int, heads: int, adapter: bool, attn_mask: torch.Tensor = None):
         super().__init__()
         self.width = width
         self.layers = layers
-        self.resblocks = nn.Sequential(*[ResidualAttentionBlock(width, heads, attn_mask) for _ in range(layers)])
+        self.resblocks = nn.Sequential(*[ResidualAttentionBlock(width, heads, adapter, attn_mask) for _ in range(layers)])
 
     def forward(self, x: torch.Tensor):
         return self.resblocks(x)
 
 
 class VisionTransformer(nn.Module):
-    def __init__(self, input_resolution: int, patch_size: int, width: int, layers: int, heads: int, output_dim: int):
+    def __init__(self, input_resolution: int, patch_size: int, width: int, layers: int, heads: int, output_dim: int, adapter: bool):
         super().__init__()
         self.input_resolution = input_resolution
         self.output_dim = output_dim
@@ -238,8 +239,7 @@ class VisionTransformer(nn.Module):
         self.class_embedding = nn.Parameter(scale * torch.randn(width))
         self.positional_embedding = nn.Parameter(scale * torch.randn((input_resolution // patch_size) ** 2 + 1, width))
         self.ln_pre = LayerNorm(width)
-
-        self.transformer = Transformer(width, layers, heads)
+        self.transformer = Transformer(width, layers, heads, adapter)
 
         self.ln_post = LayerNorm(width)
         self.proj = nn.Parameter(scale * torch.randn(width, output_dim))
@@ -277,7 +277,8 @@ class CLIP(nn.Module):
                  vocab_size: int,
                  transformer_width: int,
                  transformer_heads: int,
-                 transformer_layers: int
+                 transformer_layers: int,
+                 adapter: bool
                  ):
         super().__init__()
 
@@ -300,13 +301,15 @@ class CLIP(nn.Module):
                 width=vision_width,
                 layers=vision_layers,
                 heads=vision_heads,
-                output_dim=embed_dim
+                output_dim=embed_dim,
+                adapter=adapter
             )
 
         self.transformer = Transformer(
             width=transformer_width,
             layers=transformer_layers,
             heads=transformer_heads,
+            adapter=adapter,
             attn_mask=self.build_attention_mask()
         )
 
@@ -420,7 +423,7 @@ def convert_weights(model: nn.Module):
     model.apply(_convert_weights_to_fp16)
 
 
-def build_model(state_dict: dict):
+def build_model(state_dict: dict, adapter):
     vit = "visual.proj" in state_dict
 
     if vit:
@@ -448,7 +451,8 @@ def build_model(state_dict: dict):
     model = CLIP(
         embed_dim,
         image_resolution, vision_layers, vision_width, vision_patch_size,
-        context_length, vocab_size, transformer_width, transformer_heads, transformer_layers
+        context_length, vocab_size, transformer_width, transformer_heads, transformer_layers,
+        adapter
     )
 
     for key in ["input_resolution", "context_length", "vocab_size"]:
@@ -456,5 +460,10 @@ def build_model(state_dict: dict):
             del state_dict[key]
 
     convert_weights(model)
-    model.load_state_dict(state_dict)
+    if adapter:
+        new_state_dict = model.state_dict()
+        new_state_dict.update(state_dict)
+        model.load_state_dict(new_state_dict)
+    else:
+        model.load_state_dict(state_dict)
     return model.eval()
