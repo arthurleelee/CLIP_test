@@ -108,12 +108,10 @@ def main(args):
     if args.adapter:
         for name, param in model.named_parameters():
             name_split = name.split(".")
-            if "adapter" not in name_split:
-                param.requires_grad = False
+            if "adapter" in name or "ln_final" in name or "ln_post" in name:
+                param.requires_grad = True
             else:
-                param.requires_grad = True
-            if name == "ln_final.weight" or name == "ln_final.bias":
-                param.requires_grad = True
+                param.requires_grad = False
             print("name: ", name)
             print("requires_grad: ", param.requires_grad)
 
