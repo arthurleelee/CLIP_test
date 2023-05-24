@@ -44,8 +44,8 @@ sentence_list = sentence_one_class_one_quantity_list + \
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-model, preprocess = clip.load("ViT-L/14", device=device, jit=False)
-checkpoint = torch.load("saved_model_epoch_120.pt")
+model, preprocess = clip.load("ViT-L/14", device=device, jit=False, adapter=True)
+checkpoint = torch.load("saved_adapter_model_epoch_120.pt")
 
 model.load_state_dict(checkpoint['model_state_dict'])
 

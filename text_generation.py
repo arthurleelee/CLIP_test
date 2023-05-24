@@ -8,6 +8,11 @@ file_list.sort()
 
 sentence_mapping_id = {}
 use_class = ["car", "van", "truck"]
+
+sentence_list = ["A photo of " + str(i) + " " + use_class[0] + ", " + str(j) + " " + use_class[1] + " and " + str(k) + " " + use_class[2] + "." for i in range(11) for j in range(11) for k in range(11)]
+
+"""
+# old version
 sentence_one_class_one_quantity_list = ["There is 1 " + i + " in the image." for i in use_class]
 sentence_one_class_many_quantity_list = ["There are " + str(j) + " " + i + "s" + " in the image." for i in use_class for j in range(2, 11)]
 sentence_two_class_one_quantity_one_quantity_list = ["There are 1 " + use_class[i] + " and 1 " + use_class[j] + " in the image." for i in range(len(use_class)) for j in range(i + 1, len(use_class))]
@@ -37,6 +42,7 @@ sentence_list = sentence_one_class_one_quantity_list + \
                 sentence_three_class_many_quantity_one_quantity_many_quantity_list + \
                 sentence_three_class_one_quantity_many_quantity_many_quantity_list + \
                 sentence_three_class_many_quantity_many_quantity_many_quantity_list
+"""
 
 for i in range(len(sentence_list)):
     sentence_mapping_id[sentence_list[i]] = i
@@ -58,6 +64,11 @@ with open("./label_2_sentence.csv", "w", newline="") as write_file:
             if type_list[0][2] > 10 or type_list[1][2] > 10 or type_list[2][2] > 10:
                 continue
             
+            if type_list[0][2] == 0 and type_list[1][2] == 0 and type_list[2][2] == 0:
+                continue
+            sentence = "A photo of " + str(type_list[0][2]) + " " + type_list[0][0] + ", " + str(type_list[1][2]) + " " + type_list[1][0] + " and " + str(type_list[2][2]) + " " + type_list[2][0] + "."
+            
+            """
             tl_num = 0
             tl_ty = []
             for tl in type_list:
@@ -85,4 +96,6 @@ with open("./label_2_sentence.csv", "w", newline="") as write_file:
                     sentence = sentence[:-2] + " and " + str(tl_ty[-1][2]) + " " + tl_ty[-1][0] + " in the image."
                 else:
                     sentence = sentence[:-2] + " and " + str(tl_ty[-1][2]) + " " + tl_ty[-1][0] + "s" + " in the image."
+            """
+            
         writer.writerow([i, sentence, sentence_mapping_id[sentence]])
