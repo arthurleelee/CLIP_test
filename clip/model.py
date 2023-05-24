@@ -198,6 +198,8 @@ class ResidualAttentionBlock(nn.Module):
         self.ln_1 = LayerNorm(d_model)
         if adapter:
             self.adapter = Adapter(d_model)
+        else:
+            self.adapter = None
         self.mlp = nn.Sequential(OrderedDict([
             ("c_fc", nn.Linear(d_model, d_model * 4)),
             ("gelu", QuickGELU()),
@@ -211,8 +213,10 @@ class ResidualAttentionBlock(nn.Module):
         return self.attn(x, x, x, need_weights=False, attn_mask=self.attn_mask)[0]
 
     def forward(self, x: torch.Tensor):
-        #x = x + self.adapter(self.attention(self.ln_1(x)))
-        x = x + self.attention(self.ln_1(x))
+        if self.adapter != None:
+            x = x + self.adapter(self.attention(self.ln_1(x)))
+        else:
+            x = x + self.attention(self.ln_1(x))
         x = x + self.mlp(self.ln_2(x))
         return x
 
