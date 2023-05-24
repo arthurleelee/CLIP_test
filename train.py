@@ -86,8 +86,8 @@ def get_args_parser():
     #parser.add_argument('--val_batch_size', type=int, default=8)
 
     # Optimizer and scheduler
-    parser.add_argument('--lr', type=float, default=5e-5)
-    parser.add_argument('--weight_decay', type=float, default=0.2)
+    parser.add_argument('--lr', type=float, default=5e-6)
+    parser.add_argument('--weight_decay', type=float, default=0.001)
     parser.add_argument('--eps', type=float, default=1e-6)
     parser.add_argument('--beta_1', type=float, default=0.9)
     parser.add_argument('--beta_2', type=float, default=0.98)
@@ -107,7 +107,6 @@ def main(args):
     
     if args.adapter:
         for name, param in model.named_parameters():
-            name_split = name.split(".")
             if "adapter" in name or "ln_final" in name or "ln_post" in name:
                 param.requires_grad = True
             else:
@@ -137,13 +136,25 @@ def main(args):
 
     loss_img = nn.CrossEntropyLoss()
     loss_txt = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, betas=(args.beta_1, args.beta_2), eps=args.eps, weight_decay=args.weight_decay) #Params used from paper, the lr is smaller, more safe for fine tuning to new dataset
+   
+    if args.adapter:
+        other_learnable_parameters_list = list(map(id, model.visual.ln_post.parameters())) + list(map(id, model.ln_final.parameters()))
+        adapter_parameters = filter(lambda p: p.requires_grad and id(p) not in other_learnable_parameters_list, model.parameters())
+        other_learnable_parameters = filter(lambda p: p.requires_grad and id(p) in other_learnable_parameters_list, model.parameters())
+        optimizer = optim.Adam([{'params':adapter_parameters, 'lr':1e-2}, 
+                                {'params':other_learnable_parameters, 'lr':args.lr, 'betas':tuple([args.beta_1, args.beta_2]), 'eps':args.eps, 'weight_decay':args.weight_decay}])
+        #Params used from paper, the lr is smaller, more safe for fine tuning to new dataset
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(args.beta_1, args.beta_2), eps=args.eps, weight_decay=args.weight_decay)
+        #Params used from paper, the lr is smaller, more safe for fine tuning to new dataset
 
     # add your own code to track the training progress.
     model.train()
     for epoch in range(args.epoch):
 
         each_epoch_total_loss = 0
+        each_epoch_image_acc = 0
+        each_epoch_text_acc = 0
 
         for batch in tqdm(train_dataloader) :
             optimizer.zero_grad()
@@ -159,6 +170,9 @@ def main(args):
             
             total_loss = (loss_img(logits_per_image, ground_truth) + loss_txt(logits_per_text, ground_truth))/2
             total_loss.backward()
+
+            image_acc = (logits_per_image.argmax(dim=-1) == ground_truth).float()
+            text_acc = (logits_per_text.argmax(dim=-1) == ground_truth).float()
             
             if device == "cpu":
                 optimizer.step()
@@ -167,10 +181,12 @@ def main(args):
                 optimizer.step()
                 clip.model.convert_weights(model)
 
-            #print('[Train] Epoch %04d | Loss %.6f' % (epoch, total_loss.item()))
+            #print('[Train] Epoch %04d | Loss %.6f | Image Acc %.6f | Text Acc %.6f' % (epoch, total_loss.item(), image_acc.sum().item(), text_acc.sum().item()))
             each_epoch_total_loss = each_epoch_total_loss + total_loss.item()
+            each_epoch_image_acc = each_epoch_image_acc + image_acc.sum().item()
+            each_epoch_text_acc = each_epoch_text_acc + text_acc.sum().item()
 
-        print('[Train] Epoch %04d | Total Loss %.6f' % (epoch, each_epoch_total_loss / len(train_dataloader)))
+        print('[Train] Epoch %04d | Total Loss %.6f | Image Acc %.6f | Text Acc %.6f' % (epoch, each_epoch_total_loss / len(train_dataloader), each_epoch_image_acc / len(train_dataloader), each_epoch_text_acc / len(train_dataloader)))
 
     """
     image = preprocess(Image.open(args.kitti_image_file_path + "/000001.png")).unsqueeze(0).to(device)
