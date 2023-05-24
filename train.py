@@ -168,7 +168,8 @@ def main(args):
                 convert_models_to_fp32(model)
                 optimizer.step()
                 clip.model.convert_weights(model)
-            print('[Train] Epoch %04d | Total Loss %.6f' % (epoch, total_loss.item()))
+
+            #print('[Train] Epoch %04d | Loss %.6f' % (epoch, total_loss.item()))
             each_epoch_total_loss = each_epoch_total_loss + total_loss.item()
 
         print('[Train] Epoch %04d | Total Loss %.6f' % (epoch, each_epoch_total_loss / len(train_dataloader)))
