@@ -143,6 +143,9 @@ def main(args):
     # add your own code to track the training progress.
     model.train()
     for epoch in range(args.epoch):
+
+        each_epoch_total_loss = 0
+
         for batch in tqdm(train_dataloader) :
             optimizer.zero_grad()
 
@@ -164,8 +167,10 @@ def main(args):
                 convert_models_to_fp32(model)
                 optimizer.step()
                 clip.model.convert_weights(model)
-                
-            print('[Train] Epoch %04d | Total Loss %.6f' % (epoch, total_loss.item()))
+            
+            each_epoch_total_loss = each_epoch_total_loss + total_loss.item()
+
+        print('[Train] Epoch %04d | Total Loss %.6f' % (epoch, each_epoch_total_loss / len(train_dataloader)))
 
     """
     image = preprocess(Image.open(args.kitti_image_file_path + "/000001.png")).unsqueeze(0).to(device)
