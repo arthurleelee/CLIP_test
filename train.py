@@ -67,8 +67,9 @@ def set_random_seed(seed, deterministic=False):
 #https://github.com/openai/CLIP/issues/57
 def convert_models_to_fp32(model): 
     for p in model.parameters():
-        p.data = p.data.float() 
-        p.grad.data = p.grad.data.float()
+        if p.requires_grad:
+            p.data = p.data.float() 
+            p.grad.data = p.grad.data.float()
 
 def get_args_parser():
     # Arguments
@@ -161,13 +162,13 @@ def main(args):
             total_loss = (loss_img(logits_per_image, ground_truth) + loss_txt(logits_per_text, ground_truth))/2
             total_loss.backward()
             
-            if device == "cpu" or args.adapter:
+            if device == "cpu":
                 optimizer.step()
             else : 
                 convert_models_to_fp32(model)
                 optimizer.step()
                 clip.model.convert_weights(model)
-            
+            print('[Train] Epoch %04d | Total Loss %.6f' % (epoch, total_loss.item()))
             each_epoch_total_loss = each_epoch_total_loss + total_loss.item()
 
         print('[Train] Epoch %04d | Total Loss %.6f' % (epoch, each_epoch_total_loss / len(train_dataloader)))
