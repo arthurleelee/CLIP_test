@@ -1,8 +1,10 @@
 import torch
 import clip
 import numpy as np
+import os
 from PIL import Image
-
+from torchsummary import summary
+from train import *
 
 sentence_mapping_id = {}
 use_class = ["car", "van", "truck"]
@@ -42,23 +44,101 @@ sentence_list = sentence_one_class_one_quantity_list + \
                 sentence_three_class_many_quantity_many_quantity_many_quantity_list
 """
 
+def get_args_parser():
+    # Arguments
+    parser = argparse.ArgumentParser()
+    # Model arguments
+    parser.add_argument('--image_encoder', type=str, default="ViT-B/32")
+    parser.add_argument('--adapter', action='store_true')
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model, preprocess = clip.load("ViT-L/14", device=device, jit=False)
-checkpoint = torch.load("saved_model_epoch_120.pt")
+    # Datasets and loaders
+    parser.add_argument('--kitti_image_file_path', type=str, default="../KITTI_DATASET_ROOT/training/image_2/")
+    parser.add_argument('--label_2_sentence_file_path', type=str, default="./label_2_sentence.csv")
+    parser.add_argument('--ratio', type=float, default=0.8)
+    parser.add_argument('--val_batch_size', type=int, default=128)
 
-model.load_state_dict(checkpoint['model_state_dict'])
+    # Training
+    parser.add_argument('--seed', type=int, default=2023)
+    parser.add_argument('--checkpoint', type=str, default='./saved_model_epoch_180.pt')
+    parser.add_argument('--device', default='0', type=str, help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    return parser.parse_args()
 
-image = preprocess(Image.open("../KITTI_DATASET_ROOT/training/image_2/006478.png")).unsqueeze(0).to(device)
-text = clip.tokenize(sentence_list).to(device)
+def main(args):
+    device = select_device(args.device)
+    model, preprocess = clip.load(args.image_encoder, device=device, jit=False, adapter=args.adapter)
+    checkpoint = torch.load(args.checkpoint)
+    model.load_state_dict(checkpoint['model_state_dict'])
 
-model.eval()
-with torch.no_grad():
-    image_features = model.encode_image(image)
-    text_features = model.encode_text(text)
+    if args.adapter:
+        for name, param in model.named_parameters():
+            if "adapter" in name or "ln_final" in name or "ln_post" in name:
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
+            print("name: ", name)
+            print("requires_grad: ", param.requires_grad)
+
+    # use your own data
+    image_file_list = [file_name for file_name in os.listdir(args.kitti_image_file_path)]
+    image_file_list.sort()
+    list_image_path = [args.kitti_image_file_path + i for i in image_file_list]
     
-    logits_per_image, logits_per_text = model(image, text)
-    probs = logits_per_image.softmax(dim=-1).cpu().numpy()
+    with open(args.label_2_sentence_file_path, 'r', newline="") as sentence_file:
+        rows = csv.reader(sentence_file)
+        list_txt = [row[1] for row in rows]
+        
+    with open(args.label_2_sentence_file_path, 'r', newline="") as sentence_file:
+        rows = csv.reader(sentence_file)
+        class_txt = [row[2] for row in rows]
+        
+    remove_index = []
+    for i in range(len(list_txt)):
+        if list_txt[i] == "None":
+            remove_index.append(i)
+    remove_index.reverse()
 
-print("Label probs:", probs.round(3))
-print("Label Prediction:", np.argmax(probs.round(3), axis=1))
+    for i in remove_index:
+        list_image_path.pop(i)
+        list_txt.pop(i)
+        class_txt.pop(i)
+    
+    train_num = math.floor(len(list_txt) * args.ratio)
+    print("Train data: ", train_num)
+    print("Val data: ", len(list_txt) - train_num)
+    dataset = image_title_dataset(list_image_path[train_num:], list_txt[train_num:], preprocess)
+    valid_dataloader = DataLoader(dataset, batch_size = args.val_batch_size) #Define your own dataloader
+
+    texts = clip.tokenize(sentence_list).to(device)
+
+    model.float()
+    for idx, batch in enumerate(valid_dataloader):
+        images, _ = batch
+        images = images.to(device)
+
+        if idx == 0:
+            summary(model, images, texts)
+            break
+
+    preds_list = np.array([])
+    gt_list = np.array(class_txt[train_num:], dtype=int)
+
+    model.eval()
+    with torch.no_grad():
+        for batch in tqdm(valid_dataloader):
+            images, _ = batch
+
+            images = images.to(device)
+
+            logits_per_image, logits_per_text = model(images, texts)
+            
+            probs = logits_per_image.softmax(dim=-1).cpu().numpy()
+            preds = np.argmax(probs.round(3), axis=1)
+
+            preds_list = np.append(preds_list, preds)
+
+    acc = (preds_list == gt_list).sum() / preds_list.shape[0]
+    print(f'Accuracy: {acc:.4f}')
+
+if __name__ == '__main__':
+    args = get_args_parser()
+    main(args)
