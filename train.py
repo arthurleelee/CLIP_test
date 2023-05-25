@@ -75,14 +75,14 @@ def get_args_parser():
     # Arguments
     parser = argparse.ArgumentParser()
     # Model arguments
-    parser.add_argument('--image_encoder', type=str, default="ViT-L/14")
+    parser.add_argument('--image_encoder', type=str, default="ViT-B/32")
     parser.add_argument('--adapter', action='store_true')
 
     # Datasets and loaders
     parser.add_argument('--kitti_image_file_path', type=str, default="../KITTI_DATASET_ROOT/training/image_2/")
     parser.add_argument('--label_2_sentence_file_path', type=str, default="./label_2_sentence.csv")
     parser.add_argument('--ratio', type=float, default=0.8)
-    parser.add_argument('--batch_size', type=int, default=8)
+    parser.add_argument('--batch_size', type=int, default=128)
     #parser.add_argument('--val_batch_size', type=int, default=8)
 
     # Optimizer and scheduler
@@ -96,7 +96,7 @@ def get_args_parser():
     parser.add_argument('--seed', type=int, default=2023)
     parser.add_argument('--checkpoint_save_dir', type=str, default='./')
     parser.add_argument('--device', default='0', type=str, help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--epoch', type=int, default=120)
+    parser.add_argument('--epoch', type=int, default=180)
     return parser.parse_args()
 
 def main(args):
@@ -129,11 +129,14 @@ def main(args):
     dataset = image_title_dataset(list_image_path[:train_num], list_txt[:train_num], preprocess)
     train_dataloader = DataLoader(dataset, batch_size = args.batch_size) #Define your own dataloader
 
+    model.float()
+    """
     if device == "cpu":
         model.float()
     else :
         clip.model.convert_weights(model) # Actually this line is unnecessary since clip by default already on float16
-
+    """
+    
     loss_img = nn.CrossEntropyLoss()
     loss_txt = nn.CrossEntropyLoss()
    
@@ -149,7 +152,6 @@ def main(args):
         #Params used from paper, the lr is smaller, more safe for fine tuning to new dataset
 
     # add your own code to track the training progress.
-    model.train()
     for epoch in range(args.epoch):
 
         each_epoch_total_loss = 0
@@ -174,12 +176,15 @@ def main(args):
             image_acc = (logits_per_image.argmax(dim=-1) == ground_truth).float()
             text_acc = (logits_per_text.argmax(dim=-1) == ground_truth).float()
             
+            optimizer.step()
+            """
             if device == "cpu":
                 optimizer.step()
             else : 
                 convert_models_to_fp32(model)
                 optimizer.step()
                 clip.model.convert_weights(model)
+            """
 
             #print('[Train] Epoch %04d | Loss %.6f | Image Acc %.6f | Text Acc %.6f' % (epoch, total_loss.item(), image_acc.sum().item(), text_acc.sum().item()))
             each_epoch_total_loss = each_epoch_total_loss + total_loss.item()
