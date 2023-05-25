@@ -9,7 +9,8 @@ file_list.sort()
 sentence_mapping_id = {}
 use_class = ["car", "van", "truck"]
 
-sentence_list = ["A photo of " + str(i) + " " + use_class[0] + ", " + str(j) + " " + use_class[1] + " and " + str(k) + " " + use_class[2] + "." for i in range(11) for j in range(11) for k in range(11)]
+sentence_list = ["None"]
+sentence_list = sentence_list + ["A photo of " + str(i) + " " + use_class[0] + ", " + str(j) + " " + use_class[1] + " and " + str(k) + " " + use_class[2] + "." for i in range(11) for j in range(11) for k in range(11)]
 
 """
 # old version
@@ -45,7 +46,7 @@ sentence_list = sentence_one_class_one_quantity_list + \
 """
 
 for i in range(len(sentence_list)):
-    sentence_mapping_id[sentence_list[i]] = i
+    sentence_mapping_id[sentence_list[i]] = i - 1
 
 
 with open("./label_2_sentence.csv", "w", newline="") as write_file:
@@ -62,11 +63,11 @@ with open("./label_2_sentence.csv", "w", newline="") as write_file:
                 elif line_list[0] == "Truck":
                     type_list[2][2] += 1
             if type_list[0][2] > 10 or type_list[1][2] > 10 or type_list[2][2] > 10:
-                continue
-            
-            if type_list[0][2] == 0 and type_list[1][2] == 0 and type_list[2][2] == 0:
-                continue
-            sentence = "A photo of " + str(type_list[0][2]) + " " + type_list[0][0] + ", " + str(type_list[1][2]) + " " + type_list[1][0] + " and " + str(type_list[2][2]) + " " + type_list[2][0] + "."
+                sentence = "None"
+            elif type_list[0][2] == 0 and type_list[1][2] == 0 and type_list[2][2] == 0:
+                sentence = "None"
+            else:
+                sentence = "A photo of " + str(type_list[0][2]) + " " + type_list[0][0] + ", " + str(type_list[1][2]) + " " + type_list[1][0] + " and " + str(type_list[2][2]) + " " + type_list[2][0] + "."
             
             """
             tl_num = 0

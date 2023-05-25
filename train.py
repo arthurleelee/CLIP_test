@@ -122,10 +122,18 @@ def main(args):
     with open(args.label_2_sentence_file_path, 'r', newline="") as sentence_file:
         rows = csv.reader(sentence_file)
         list_txt = [row[1] for row in rows]
+    remove_index = []
+    for i in range(len(list_txt)):
+        if list_txt[i] == "None":
+            remove_index.append(i)
+    remove_index.reverse()
+    for i in remove_index:
+        list_image_path.pop(i)
+        list_txt.pop(i)
     
-    train_num = math.floor(len(list_image_path) * args.ratio)
+    train_num = math.floor(len(list_txt) * args.ratio)
     print("Train data: ", train_num)
-    print("Val data: ", len(list_image_path) - train_num)
+    print("Val data: ", len(list_txt) - train_num)
     dataset = image_title_dataset(list_image_path[:train_num], list_txt[:train_num], preprocess)
     train_dataloader = DataLoader(dataset, batch_size = args.batch_size) #Define your own dataloader
 
@@ -144,7 +152,7 @@ def main(args):
         other_learnable_parameters_list = list(map(id, model.visual.ln_post.parameters())) + list(map(id, model.ln_final.parameters()))
         adapter_parameters = filter(lambda p: p.requires_grad and id(p) not in other_learnable_parameters_list, model.parameters())
         other_learnable_parameters = filter(lambda p: p.requires_grad and id(p) in other_learnable_parameters_list, model.parameters())
-        optimizer = optim.Adam([{'params':adapter_parameters, 'lr':1e-2}, 
+        optimizer = optim.Adam([{'params':adapter_parameters, 'lr':5e-4, 'weight_decay':args.weight_decay}, 
                                 {'params':other_learnable_parameters, 'lr':args.lr, 'betas':tuple([args.beta_1, args.beta_2]), 'eps':args.eps, 'weight_decay':args.weight_decay}])
         #Params used from paper, the lr is smaller, more safe for fine tuning to new dataset
     else:
