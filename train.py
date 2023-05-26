@@ -96,7 +96,7 @@ def get_args_parser():
     parser.add_argument('--seed', type=int, default=2023)
     parser.add_argument('--checkpoint_save_dir', type=str, default='./')
     parser.add_argument('--device', default='0', type=str, help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--epoch', type=int, default=180)
+    parser.add_argument('--epoch', type=int, default=720)
     return parser.parse_args()
 
 def main(args):
