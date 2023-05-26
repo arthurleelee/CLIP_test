@@ -87,7 +87,7 @@ def get_args_parser():
 
     # Optimizer and scheduler
     parser.add_argument('--lr', type=float, default=5e-6)
-    parser.add_argument('--weight_decay', type=float, default=0.001)
+    parser.add_argument('--weight_decay', type=float, default=0.2)
     parser.add_argument('--eps', type=float, default=1e-6)
     parser.add_argument('--beta_1', type=float, default=0.9)
     parser.add_argument('--beta_2', type=float, default=0.98)
@@ -135,7 +135,7 @@ def main(args):
     print("Train data: ", train_num)
     print("Val data: ", len(list_txt) - train_num)
     dataset = image_title_dataset(list_image_path[:train_num], list_txt[:train_num], preprocess)
-    train_dataloader = DataLoader(dataset, batch_size = args.batch_size) #Define your own dataloader
+    train_dataloader = DataLoader(dataset, batch_size = args.batch_size, shuffle=True) #Define your own dataloader
 
     model.float()
     """
@@ -152,7 +152,7 @@ def main(args):
         other_learnable_parameters_list = list(map(id, model.visual.ln_post.parameters())) + list(map(id, model.ln_final.parameters()))
         adapter_parameters = filter(lambda p: p.requires_grad and id(p) not in other_learnable_parameters_list, model.parameters())
         other_learnable_parameters = filter(lambda p: p.requires_grad and id(p) in other_learnable_parameters_list, model.parameters())
-        optimizer = optim.Adam([{'params':adapter_parameters, 'lr':5e-4, 'weight_decay':args.weight_decay}, 
+        optimizer = optim.AdamW([{'params':adapter_parameters, 'lr':5e-4}, 
                                 {'params':other_learnable_parameters, 'lr':args.lr, 'betas':tuple([args.beta_1, args.beta_2]), 'eps':args.eps, 'weight_decay':args.weight_decay}])
         #Params used from paper, the lr is smaller, more safe for fine tuning to new dataset
     else:
