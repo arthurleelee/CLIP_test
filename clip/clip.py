@@ -91,7 +91,7 @@ def available_models() -> List[str]:
     return list(_MODELS.keys())
 
 
-def load(name: str, device: Union[str, torch.device] = "cuda" if torch.cuda.is_available() else "cpu", jit: bool = False, download_root: str = None, adapter: bool = False):
+def load(name: str, device: Union[str, torch.device] = "cuda" if torch.cuda.is_available() else "cpu", jit: bool = False, download_root: str = None, adapter: bool = False, prompt: dict={}):
     """Load a CLIP model
 
     Parameters
@@ -111,6 +111,8 @@ def load(name: str, device: Union[str, torch.device] = "cuda" if torch.cuda.is_a
     adapter : bool
         Whether to add adapter layer to transformer.
 
+    prompt: dict
+        vpt setting
     Returns
     -------
     model : torch.nn.Module
@@ -139,7 +141,7 @@ def load(name: str, device: Union[str, torch.device] = "cuda" if torch.cuda.is_a
             state_dict = torch.load(opened_file, map_location="cpu")
 
     if not jit:
-        model = build_model(state_dict or model.state_dict(), adapter).to(device)
+        model = build_model(state_dict or model.state_dict(), adapter, prompt).to(device)
         if str(device) == "cpu":
             model.float()
         return model, _transform(model.visual.input_resolution)

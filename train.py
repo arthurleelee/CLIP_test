@@ -97,13 +97,17 @@ def get_args_parser():
     parser.add_argument('--checkpoint_save_dir', type=str, default='./')
     parser.add_argument('--device', default='0', type=str, help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--epoch', type=int, default=720)
+    # prompt
+    parser.add_argument('--prompt', action='store_true')
     return parser.parse_args()
 
 def main(args):
     device = select_device(args.device)
     set_random_seed(args.seed, deterministic=True)
-    
-    model, preprocess = clip.load(args.image_encoder, device=device, jit=False, adapter=args.adapter) #Must set jit=False for training
+    prompt_config={'flag':False}
+    if args.prompt:
+        prompt_config={'flag':True,'num_token':5,'mode':'shallow', 'dropout':float(0),'prompt_dim':256}
+    model, preprocess = clip.load(args.image_encoder, device=device, jit=False, adapter=args.adapter, prompt=prompt_config) #Must set jit=False for training
     
     if args.adapter:
         for name, param in model.named_parameters():
@@ -113,7 +117,6 @@ def main(args):
                 param.requires_grad = False
             print("name: ", name)
             print("requires_grad: ", param.requires_grad)
-
     # use your own data
     image_file_list = [file_name for file_name in os.listdir(args.kitti_image_file_path)]
     image_file_list.sort()

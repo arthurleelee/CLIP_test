@@ -5,7 +5,12 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
-
+import copy
+import math
+from functools import reduce
+from operator import mul
+from torch.nn.modules.utils import _pair
+from torch.nn import Conv2d, Dropout
 
 class Bottleneck(nn.Module):
     expansion = 4
@@ -191,9 +196,19 @@ class Adapter(nn.Module):
 
 
 class ResidualAttentionBlock(nn.Module):
-    def __init__(self, d_model: int, n_head: int, adapter:bool, attn_mask: torch.Tensor = None):
+    def __init__(self,l:int, d_model: int, n_head: int, adapter:bool, prompt:dict, attn_mask: torch.Tensor = None):
         super().__init__()
-
+        self.prompt=prompt['flag']
+        if(self.prompt):
+            if(prompt['mode']=='shallow' and l==0):
+                val = math.sqrt(6. / float(3 * reduce(mul,  prompt['patch_size'], 1) + prompt['prompt_dim']))  # noqa
+                self.prompt_embeddings = nn.Parameter(torch.zeros(
+                    1, prompt['num_token'], prompt['prompt_dim']))
+                nn.init.uniform_(self.prompt_embeddings.data, -val, val)
+                self.prompt_dropout = Dropout(prompt['dropout'])
+                self.prompt_proj = nn.Identity()
+            else:
+                self.prompt=False
         self.attn = nn.MultiheadAttention(d_model, n_head)
         self.ln_1 = LayerNorm(d_model)
         if adapter:
@@ -208,11 +223,27 @@ class ResidualAttentionBlock(nn.Module):
         self.ln_2 = LayerNorm(d_model)
         self.attn_mask = attn_mask
 
+    def incorporate_prompt(self, x):
+        # combine prompt embeddings with image-patch embeddings
+        B = x.shape[0]
+        # after CLS token, all before image patches
+        x = self.embeddings(x)  # (batch_size, 1 + n_patches, hidden_dim)
+        x = torch.cat((
+                x[:, :1, :],
+                self.prompt_dropout(self.prompt_proj(self.prompt_embeddings).expand(B, -1, -1)),
+                x[:, 1:, :]
+            ), dim=1)
+        # (batch_size, cls_token + n_prompt + n_patches, hidden_dim)
+
+        return x
+
     def attention(self, x: torch.Tensor):
         self.attn_mask = self.attn_mask.to(dtype=x.dtype, device=x.device) if self.attn_mask is not None else None
         return self.attn(x, x, x, need_weights=False, attn_mask=self.attn_mask)[0]
 
     def forward(self, x: torch.Tensor):
+        if self.prompt:
+            x = self.incorporate_prompt(x)
         if self.adapter != None:
             x = x + self.adapter(self.attention(self.ln_1(x)))
         else:
@@ -222,19 +253,23 @@ class ResidualAttentionBlock(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, width: int, layers: int, heads: int, adapter: bool, attn_mask: torch.Tensor = None):
+    def __init__(self, width: int, layers: int, heads: int, adapter: bool,prompt:dict, attn_mask: torch.Tensor = None, ):
         super().__init__()
+        self.prompt=prompt['flag']
         self.width = width
         self.layers = layers
-        self.resblocks = nn.Sequential(*[ResidualAttentionBlock(width, heads, adapter, attn_mask) for _ in range(layers)])
+        self.resblocks = nn.Sequential(*[ResidualAttentionBlock(l,width, heads, adapter, prompt, attn_mask) for l in range(layers)])
 
     def forward(self, x: torch.Tensor):
         return self.resblocks(x)
 
 
 class VisionTransformer(nn.Module):
-    def __init__(self, input_resolution: int, patch_size: int, width: int, layers: int, heads: int, output_dim: int, adapter: bool):
+    def __init__(self, input_resolution: int, patch_size: int, width: int, layers: int, heads: int, output_dim: int, adapter: bool, prompt:dict):
         super().__init__()
+        self.prompt=prompt['flag']
+        if(self.prompt):
+            prompt['patch_size']=_pair((patch_size,patch_size))
         self.input_resolution = input_resolution
         self.output_dim = output_dim
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=width, kernel_size=patch_size, stride=patch_size, bias=False)
@@ -243,7 +278,7 @@ class VisionTransformer(nn.Module):
         self.class_embedding = nn.Parameter(scale * torch.randn(width))
         self.positional_embedding = nn.Parameter(scale * torch.randn((input_resolution // patch_size) ** 2 + 1, width))
         self.ln_pre = LayerNorm(width)
-        self.transformer = Transformer(width, layers, heads, adapter)
+        self.transformer = Transformer(width, layers, heads, adapter, prompt)
 
         self.ln_post = LayerNorm(width)
         self.proj = nn.Parameter(scale * torch.randn(width, output_dim))
@@ -282,7 +317,8 @@ class CLIP(nn.Module):
                  transformer_width: int,
                  transformer_heads: int,
                  transformer_layers: int,
-                 adapter: bool
+                 adapter: bool,
+                 prompt: dict,
                  ):
         super().__init__()
 
@@ -306,15 +342,19 @@ class CLIP(nn.Module):
                 layers=vision_layers,
                 heads=vision_heads,
                 output_dim=embed_dim,
-                adapter=adapter
+                adapter=adapter,
+                prompt=prompt,
             )
-
+        prompt_for_text=copy.deepcopy(prompt)
+        prompt_for_text['flag']=False
         self.transformer = Transformer(
             width=transformer_width,
             layers=transformer_layers,
             heads=transformer_heads,
             adapter=adapter,
-            attn_mask=self.build_attention_mask()
+            prompt=prompt_for_text,
+            attn_mask=self.build_attention_mask(),
+            
         )
 
         self.vocab_size = vocab_size
@@ -427,7 +467,7 @@ def convert_weights(model: nn.Module):
     model.apply(_convert_weights_to_fp16)
 
 
-def build_model(state_dict: dict, adapter):
+def build_model(state_dict: dict, adapter, prompt: dict):
     vit = "visual.proj" in state_dict
 
     if vit:
@@ -456,7 +496,8 @@ def build_model(state_dict: dict, adapter):
         embed_dim,
         image_resolution, vision_layers, vision_width, vision_patch_size,
         context_length, vocab_size, transformer_width, transformer_heads, transformer_layers,
-        adapter
+        adapter,
+        prompt,
     )
 
     for key in ["input_resolution", "context_length", "vocab_size"]:
