@@ -209,6 +209,7 @@ class ResidualAttentionBlock(nn.Module):
                 self.prompt_proj = nn.Identity()
             else:
                 self.prompt=False
+        
         self.attn = nn.MultiheadAttention(d_model, n_head)
         self.ln_1 = LayerNorm(d_model)
         if adapter:
@@ -225,14 +226,16 @@ class ResidualAttentionBlock(nn.Module):
 
     def incorporate_prompt(self, x):
         # combine prompt embeddings with image-patch embeddings
+        x = x.permute(1, 0, 2)
         B = x.shape[0]
         # after CLS token, all before image patches
-        x = self.embeddings(x)  # (batch_size, 1 + n_patches, hidden_dim)
+        # x = self.embeddings(x)  # (batch_size, 1 + n_patches, hidden_dim)
         x = torch.cat((
                 x[:, :1, :],
                 self.prompt_dropout(self.prompt_proj(self.prompt_embeddings).expand(B, -1, -1)),
                 x[:, 1:, :]
             ), dim=1)
+        x = x.permute(1, 0, 2)        
         # (batch_size, cls_token + n_prompt + n_patches, hidden_dim)
 
         return x
@@ -279,22 +282,20 @@ class VisionTransformer(nn.Module):
         self.positional_embedding = nn.Parameter(scale * torch.randn((input_resolution // patch_size) ** 2 + 1, width))
         self.ln_pre = LayerNorm(width)
         self.transformer = Transformer(width, layers, heads, adapter, prompt)
-
         self.ln_post = LayerNorm(width)
         self.proj = nn.Parameter(scale * torch.randn(width, output_dim))
 
     def forward(self, x: torch.Tensor):
+        
         x = self.conv1(x)  # shape = [*, width, grid, grid]
         x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
         x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
         x = torch.cat([self.class_embedding.to(x.dtype) + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device), x], dim=1)  # shape = [*, grid ** 2 + 1, width]
         x = x + self.positional_embedding.to(x.dtype)
         x = self.ln_pre(x)
-
         x = x.permute(1, 0, 2)  # NLD -> LND
         x = self.transformer(x)
         x = x.permute(1, 0, 2)  # LND -> NLD
-
         x = self.ln_post(x[:, 0, :])
 
         if self.proj is not None:
@@ -354,7 +355,6 @@ class CLIP(nn.Module):
             adapter=adapter,
             prompt=prompt_for_text,
             attn_mask=self.build_attention_mask(),
-            
         )
 
         self.vocab_size = vocab_size
@@ -429,7 +429,6 @@ class CLIP(nn.Module):
     def forward(self, image, text):
         image_features = self.encode_image(image)
         text_features = self.encode_text(text)
-
         # normalized features
         image_features = image_features / image_features.norm(dim=1, keepdim=True)
         text_features = text_features / text_features.norm(dim=1, keepdim=True)
@@ -506,6 +505,10 @@ def build_model(state_dict: dict, adapter, prompt: dict):
 
     convert_weights(model)
     if adapter:
+        new_state_dict = model.state_dict()
+        new_state_dict.update(state_dict)
+        model.load_state_dict(new_state_dict)
+    elif prompt['flag']:
         new_state_dict = model.state_dict()
         new_state_dict.update(state_dict)
         model.load_state_dict(new_state_dict)

@@ -106,7 +106,7 @@ def main(args):
     set_random_seed(args.seed, deterministic=True)
     prompt_config={'flag':False}
     if args.prompt:
-        prompt_config={'flag':True,'num_token':5,'mode':'shallow', 'dropout':float(0),'prompt_dim':256}
+        prompt_config={'flag':True,'num_token':5,'mode':'shallow', 'dropout':float(0),'prompt_dim':768}
     model, preprocess = clip.load(args.image_encoder, device=device, jit=False, adapter=args.adapter, prompt=prompt_config) #Must set jit=False for training
     
     if args.adapter:
@@ -176,17 +176,15 @@ def main(args):
         
             images = images.to(device)
             texts = texts.to(device)
-        
-            logits_per_image, logits_per_text = model(images, texts)
 
+            logits_per_image, logits_per_text = model(images, texts)
             ground_truth = torch.arange(len(images), dtype=torch.long, device=device)
             
             total_loss = (loss_img(logits_per_image, ground_truth) + loss_txt(logits_per_text, ground_truth))/2
             total_loss.backward()
-
+            
             image_acc = (logits_per_image.argmax(dim=-1) == ground_truth).float()
             text_acc = (logits_per_text.argmax(dim=-1) == ground_truth).float()
-            
             optimizer.step()
             """
             if device == "cpu":
@@ -201,6 +199,7 @@ def main(args):
             each_epoch_total_loss = each_epoch_total_loss + total_loss.item()
             each_epoch_image_acc = each_epoch_image_acc + image_acc.sum().item()
             each_epoch_text_acc = each_epoch_text_acc + text_acc.sum().item()
+
 
         print('[Train] Epoch %04d | Total Loss %.6f | Image Acc %.6f | Text Acc %.6f' % (epoch, each_epoch_total_loss / len(train_dataloader), each_epoch_image_acc / len(train_dataloader), each_epoch_text_acc / len(train_dataloader)))
 

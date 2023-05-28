@@ -44,6 +44,10 @@ python train.py
 
 # Using adapter to fine tune
 python train.py --adapter
+
+
+# Using vpt to fine tune
+python train.py --prompt
 ```
 <br/>
 
