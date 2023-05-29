@@ -1,4 +1,4 @@
-# **Kitti Vehicle Dataset**
+# **Three Method Fine-tune on CLIP for Vehicle Counting Task**
 
 ## **Approach**
 ### 1. General
@@ -37,7 +37,7 @@ python text_generation.py
 ---
 <br/>
 
-## **Fine Tune**
+## **Fine-tune**
 ```bash
 # General fine tune on whole model
 python train.py
