@@ -94,9 +94,11 @@ def get_args_parser():
 
     # Training
     parser.add_argument('--seed', type=int, default=2023)
-    parser.add_argument('--checkpoint_save_dir', type=str, default='./')
+    parser.add_argument('--checkpoint_save_dir', type=str, default='./ckpt/')
     parser.add_argument('--device', default='0', type=str, help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--epoch', type=int, default=720)
+    parser.add_argument('--save_interval', type=int, default=100)
+    parser.add_argument('--logfile', type=str, default='./log.txt')
     # prompt
     parser.add_argument('--prompt', action='store_true')
     return parser.parse_args()
@@ -108,7 +110,8 @@ def main(args):
     if args.prompt:
         prompt_config={'flag':True,'num_token':5,'mode':'shallow', 'dropout':float(0),'prompt_dim':768}
     model, preprocess = clip.load(args.image_encoder, device=device, jit=False, adapter=args.adapter, prompt=prompt_config) #Must set jit=False for training
-    
+    if os.path.isfile(args.logfile):
+        os.remove(args.logfile)
     if args.adapter:
         for name, param in model.named_parameters():
             if "adapter" in name or "ln_final" in name or "ln_post" in name:
@@ -158,6 +161,14 @@ def main(args):
         optimizer = optim.AdamW([{'params':adapter_parameters, 'lr':5e-4}, 
                                 {'params':other_learnable_parameters, 'lr':args.lr, 'betas':tuple([args.beta_1, args.beta_2]), 'eps':args.eps, 'weight_decay':args.weight_decay}])
         #Params used from paper, the lr is smaller, more safe for fine tuning to new dataset
+    elif args.prompt:
+        for name, param in model.named_parameters():
+            if(name.__contains__('visual.transformer')):
+                if(name.__contains__('prompt_embeddings')):
+                    print(name,param)
+                else:
+                    param.requires_grad = False
+        optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(args.beta_1, args.beta_2), eps=args.eps, weight_decay=args.weight_decay)
     else:
         optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(args.beta_1, args.beta_2), eps=args.eps, weight_decay=args.weight_decay)
         #Params used from paper, the lr is smaller, more safe for fine tuning to new dataset
@@ -202,7 +213,14 @@ def main(args):
 
 
         print('[Train] Epoch %04d | Total Loss %.6f | Image Acc %.6f | Text Acc %.6f' % (epoch, each_epoch_total_loss / len(train_dataloader), each_epoch_image_acc / len(train_dataloader), each_epoch_text_acc / len(train_dataloader)))
-
+        with open(args.logfile,'a') as logfile:
+            logfile.write(f'[Train] Epoch %04d | Total Loss %.6f | Image Acc %.6f | Text Acc %.6f\n' % (epoch, each_epoch_total_loss / len(train_dataloader), each_epoch_image_acc / len(train_dataloader), each_epoch_text_acc / len(train_dataloader)))
+        if(epoch > 0 and epoch % args.save_interval==0):
+            torch.save({'epoch': epoch, 
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'loss': total_loss,
+                    }, args.checkpoint_save_dir + "/saved_model_epoch_" + str(epoch) + ".pt")
     """
     image = preprocess(Image.open(args.kitti_image_file_path + "/000001.png")).unsqueeze(0).to(device)
     text = clip.tokenize(["There are 1 car and 1 truck in the image.", "There is 1 car in the image.", "There is 1 truck in the image."]).to(device)
@@ -221,14 +239,13 @@ def main(args):
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': total_loss,
-                    }, args.checkpoint_save_dir + "saved_adapter_model_epoch_" + str(args.epoch) + ".pt")
+                    }, args.checkpoint_save_dir + "/saved_adapter_model_epoch_" + str(args.epoch) + ".pt")
     else:
         torch.save({'epoch': epoch, 
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': total_loss,
-                    }, args.checkpoint_save_dir + "saved_model_epoch_" + str(args.epoch) + ".pt")
-
+                    }, args.checkpoint_save_dir + "/saved_model_epoch_" + str(args.epoch) + ".pt")
 if __name__ == '__main__':
     args = get_args_parser()
     main(args)
