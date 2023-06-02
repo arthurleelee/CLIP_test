@@ -168,7 +168,7 @@ def main(args):
                     print(name,param)
                 else:
                     param.requires_grad = False
-        optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(args.beta_1, args.beta_2), eps=args.eps, weight_decay=args.weight_decay)
+        optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=(args.beta_1, args.beta_2), eps=args.eps, weight_decay=args.weight_decay)
     else:
         optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=(args.beta_1, args.beta_2), eps=args.eps, weight_decay=args.weight_decay)
         #Params used from paper, the lr is smaller, more safe for fine tuning to new dataset
