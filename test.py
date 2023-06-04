@@ -96,7 +96,6 @@ def main(args):
                         pass
                     else:
                         param.requires_grad = False
-
     # use your own data
     image_file_list = [file_name for file_name in os.listdir(args.kitti_image_file_path)]
     image_file_list.sort()
