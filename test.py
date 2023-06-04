@@ -50,7 +50,8 @@ def get_args_parser():
     # Model arguments
     parser.add_argument('--image_encoder', type=str, default="ViT-B/32")
     parser.add_argument('--adapter', action='store_true')
-
+    parser.add_argument('--prompt', action='store_true')
+    parser.add_argument('--vpt_version', type=int, default='2')
     # Datasets and loaders
     parser.add_argument('--kitti_image_file_path', type=str, default="../KITTI_DATASET_ROOT/training/image_2/")
     parser.add_argument('--label_2_sentence_file_path', type=str, default="./label_2_sentence.csv")
@@ -65,10 +66,13 @@ def get_args_parser():
 
 def main(args):
     device = select_device(args.device)
-    model, preprocess = clip.load(args.image_encoder, device=device, jit=False, adapter=args.adapter)
+    prompt_config={'flag':False}
+    if args.prompt:
+        prompt_config={'flag':True,'num_token':5,'mode':'shallow', 'dropout':float(0),'prompt_dim':768}
+    model, preprocess = clip.load(args.image_encoder, device=device, jit=False, adapter=args.adapter, prompt=prompt_config)
     checkpoint = torch.load(args.checkpoint)
     model.load_state_dict(checkpoint['model_state_dict'])
-
+    
     if args.adapter:
         for name, param in model.named_parameters():
             if "adapter" in name or "ln_final" in name or "ln_post" in name:
@@ -77,6 +81,21 @@ def main(args):
                 param.requires_grad = False
             print("name: ", name)
             print("requires_grad: ", param.requires_grad)
+    elif args.prompt:
+        if(args.vpt_version==1):
+            for name, param in model.named_parameters():
+                if(name.__contains__('transformer')):
+                    if(name.__contains__('prompt_embeddings')):
+                        pass
+                    else:
+                        param.requires_grad = False
+        elif(args.vpt_version==2):
+            for name, param in model.named_parameters():
+                if(name.__contains__('transformer')):
+                    if(name.__contains__('prompt_embeddings')):
+                        pass
+                    else:
+                        param.requires_grad = False
 
     # use your own data
     image_file_list = [file_name for file_name in os.listdir(args.kitti_image_file_path)]

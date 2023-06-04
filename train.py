@@ -101,6 +101,7 @@ def get_args_parser():
     parser.add_argument('--logfile', type=str, default='./log.txt')
     # prompt
     parser.add_argument('--prompt', action='store_true')
+    parser.add_argument('--vpt_version', type=int, default='2')
     return parser.parse_args()
 
 def main(args):
@@ -164,12 +165,20 @@ def main(args):
                                 {'params':other_learnable_parameters, 'lr':args.lr, 'betas':tuple([args.beta_1, args.beta_2]), 'eps':args.eps, 'weight_decay':args.weight_decay}])
         #Params used from paper, the lr is smaller, more safe for fine tuning to new dataset
     elif args.prompt:
-        for name, param in model.named_parameters():
-            if(name.__contains__('transformer')):
-                if(name.__contains__('prompt_embeddings')):
-                    print(name,param)
-                else:
-                    param.requires_grad = False
+        if(args.vpt_version==1):
+            for name, param in model.named_parameters():
+                if(name.__contains__('transformer')):
+                    if(name.__contains__('prompt_embeddings')):
+                        print(name,param)
+                    else:
+                        param.requires_grad = False
+        elif(args.vpt_version==2):
+            for name, param in model.named_parameters():
+                if(name.__contains__('transformer')):
+                    if(name.__contains__('prompt_embeddings')):
+                        print(name,param)
+                    else:
+                        param.requires_grad = False
 
         optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=(args.beta_1, args.beta_2), eps=args.eps, weight_decay=args.weight_decay)
     else:
