@@ -96,8 +96,8 @@ def get_args_parser():
     parser.add_argument('--seed', type=int, default=2023)
     parser.add_argument('--checkpoint_save_dir', type=str, default='./ckpt/')
     parser.add_argument('--device', default='0', type=str, help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--epoch', type=int, default=720)
-    parser.add_argument('--save_interval', type=int, default=100)
+    parser.add_argument('--epoch', type=int, default=200)
+    parser.add_argument('--save_interval', type=int, default=50)
     parser.add_argument('--logfile', type=str, default='./log.txt')
     # prompt
     parser.add_argument('--prompt', action='store_true')
@@ -112,6 +112,8 @@ def main(args):
     model, preprocess = clip.load(args.image_encoder, device=device, jit=False, adapter=args.adapter, prompt=prompt_config) #Must set jit=False for training
     if os.path.isfile(args.logfile):
         os.remove(args.logfile)
+    if not os.path.isdir(args.checkpoint_save_dir):
+        os.mkdir(args.checkpoint_save_dir)
     if args.adapter:
         for name, param in model.named_parameters():
             if "adapter" in name or "ln_final" in name or "ln_post" in name:
@@ -163,11 +165,12 @@ def main(args):
         #Params used from paper, the lr is smaller, more safe for fine tuning to new dataset
     elif args.prompt:
         for name, param in model.named_parameters():
-            if(name.__contains__('visual.transformer')):
+            if(name.__contains__('transformer')):
                 if(name.__contains__('prompt_embeddings')):
                     print(name,param)
                 else:
                     param.requires_grad = False
+
         optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=(args.beta_1, args.beta_2), eps=args.eps, weight_decay=args.weight_decay)
     else:
         optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=(args.beta_1, args.beta_2), eps=args.eps, weight_decay=args.weight_decay)
