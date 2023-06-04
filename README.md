@@ -47,7 +47,7 @@ python train.py --adapter
 
 
 # Using vpt to fine tune
-python train.py --prompt
+python train.py --prompt --vpt_version 1or2
 ```
 <br/>
 
