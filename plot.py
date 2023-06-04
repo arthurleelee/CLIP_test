@@ -16,17 +16,19 @@ def plot(d):
     plt.xlabel('Epoch') 
     plt.ylabel('loss') 
     plt.title('Training loss')
-    plt.savefig('./image/loss.png')
-
-    plt.show()
+    plt.savefig('./image/adapter_loss.png')
+    #plt.show()
+    plt.close()
+    
     plt.plot(epoch,img_acc,label='img_acc')
     plt.plot(epoch,text_acc,label='text_acc')
     plt.legend()
     plt.xlabel('Epoch') 
     plt.ylabel('accuracy')
     plt.title('Image and text accuracy')
-    plt.savefig('./image/acc.png')
-    plt.show() 
+    plt.savefig('./image/adapter_acc.png')
+    #plt.show()
+    plt.close()
 def parselog(s):
     s1=s.split('|')
     epoch=int(s1[0].split(' ')[-2])
@@ -41,6 +43,6 @@ def readlog(logfile):
     for x in f:
         data.append(parselog(x))
     return data[:200]
-log1="./ver2/log.txt"
+log1="./adapter_log.txt"
 plot(readlog(log1))
 
