@@ -107,22 +107,26 @@ def get_args_parser():
 def main(args):
     device = select_device(args.device)
     set_random_seed(args.seed, deterministic=True)
-    prompt_config={'flag':False}
-    if args.prompt:
-        prompt_config={'flag':True,'num_token':5,'mode':'shallow', 'dropout':float(0),'prompt_dim':768}
-    model, preprocess = clip.load(args.image_encoder, device=device, jit=False, adapter=args.adapter, prompt=prompt_config) #Must set jit=False for training
     if os.path.isfile(args.logfile):
         os.remove(args.logfile)
     if not os.path.isdir(args.checkpoint_save_dir):
         os.mkdir(args.checkpoint_save_dir)
+
     if args.adapter:
         for name, param in model.named_parameters():
             if "adapter" in name or "ln_final" in name or "ln_post" in name:
                 param.requires_grad = True
             else:
                 param.requires_grad = False
-            print("name: ", name)
-            print("requires_grad: ", param.requires_grad)
+            #print("name: ", name)
+            #print("requires_grad: ", param.requires_grad)
+    
+    prompt_config={'flag':False}
+    if args.prompt:
+        prompt_config={'flag':True,'num_token':5,'mode':'shallow', 'dropout':float(0),'prompt_dim':768}
+        
+    model, preprocess = clip.load(args.image_encoder, device=device, jit=False, adapter=args.adapter, prompt=prompt_config) #Must set jit=False for training
+    
     # use your own data
     image_file_list = [file_name for file_name in os.listdir(args.kitti_image_file_path)]
     image_file_list.sort()
@@ -208,6 +212,7 @@ def main(args):
             
             image_acc = (logits_per_image.argmax(dim=-1) == ground_truth).float()
             text_acc = (logits_per_text.argmax(dim=-1) == ground_truth).float()
+            
             optimizer.step()
             """
             if device == "cpu":
@@ -233,31 +238,13 @@ def main(args):
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': total_loss,
                     }, args.checkpoint_save_dir + "/saved_model_epoch_" + str(epoch) + ".pt")
-    """
-    image = preprocess(Image.open(args.kitti_image_file_path + "/000001.png")).unsqueeze(0).to(device)
-    text = clip.tokenize(["There are 1 car and 1 truck in the image.", "There is 1 car in the image.", "There is 1 truck in the image."]).to(device)
-    model.eval()
-    with torch.no_grad():
-        image_features = model.encode_image(image)
-        text_features = model.encode_text(text)
-      
-        logits_per_image, logits_per_text = model(image, text)
-        probs = logits_per_image.softmax(dim=-1).cpu().numpy()
-    print("Label probs:", probs)
-    """
     
-    if args.adapter:
-        torch.save({'epoch': epoch, 
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'loss': total_loss,
-                    }, args.checkpoint_save_dir + "/saved_adapter_model_epoch_" + str(args.epoch) + ".pt")
-    else:
-        torch.save({'epoch': epoch, 
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'loss': total_loss,
-                    }, args.checkpoint_save_dir + "/saved_model_epoch_" + str(args.epoch) + ".pt")
+    torch.save({'epoch': epoch, 
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': total_loss,
+                }, args.checkpoint_save_dir + "/saved_model_epoch_" + str(args.epoch) + ".pt")
+    
 if __name__ == '__main__':
     args = get_args_parser()
     main(args)
