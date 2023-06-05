@@ -84,7 +84,7 @@ def main(args):
     elif args.prompt:
         if(args.vpt_version==1):
             for name, param in model.named_parameters():
-                if(name.__contains__('transformer')):
+                if(name.__contains__('visual.transformer')):
                     if(name.__contains__('prompt_embeddings')):
                         pass
                     else:

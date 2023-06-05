@@ -111,7 +111,9 @@ def main(args):
         os.remove(args.logfile)
     if not os.path.isdir(args.checkpoint_save_dir):
         os.mkdir(args.checkpoint_save_dir)
-
+    prompt_config={'flag':False}
+    if args.prompt:
+        prompt_config={'flag':True,'num_token':5,'mode':'shallow', 'dropout':float(0),'prompt_dim':768}
     if args.adapter:
         for name, param in model.named_parameters():
             if "adapter" in name or "ln_final" in name or "ln_post" in name:
@@ -120,10 +122,23 @@ def main(args):
                 param.requires_grad = False
             #print("name: ", name)
             #print("requires_grad: ", param.requires_grad)
+    elif args.prompt:
+        if(args.vpt_version==1):
+            for name, param in model.named_parameters():
+                if(name.__contains__('visual.transformer')):
+                    if(name.__contains__('prompt_embeddings')):
+                        print(name,param)
+                    else:
+                        param.requires_grad = False
+        elif(args.vpt_version==2):
+            for name, param in model.named_parameters():
+                if(name.__contains__('transformer')):
+                    if(name.__contains__('prompt_embeddings')):
+                        print(name,param)
+                    else:
+                        param.requires_grad = False
     
-    prompt_config={'flag':False}
-    if args.prompt:
-        prompt_config={'flag':True,'num_token':5,'mode':'shallow', 'dropout':float(0),'prompt_dim':768}
+    
         
     model, preprocess = clip.load(args.image_encoder, device=device, jit=False, adapter=args.adapter, prompt=prompt_config) #Must set jit=False for training
     
@@ -168,23 +183,6 @@ def main(args):
         optimizer = optim.AdamW([{'params':adapter_parameters, 'lr':5e-4}, 
                                 {'params':other_learnable_parameters, 'lr':args.lr, 'betas':tuple([args.beta_1, args.beta_2]), 'eps':args.eps, 'weight_decay':args.weight_decay}])
         #Params used from paper, the lr is smaller, more safe for fine tuning to new dataset
-    elif args.prompt:
-        if(args.vpt_version==1):
-            for name, param in model.named_parameters():
-                if(name.__contains__('transformer')):
-                    if(name.__contains__('prompt_embeddings')):
-                        print(name,param)
-                    else:
-                        param.requires_grad = False
-        elif(args.vpt_version==2):
-            for name, param in model.named_parameters():
-                if(name.__contains__('transformer')):
-                    if(name.__contains__('prompt_embeddings')):
-                        print(name,param)
-                    else:
-                        param.requires_grad = False
-
-        optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=(args.beta_1, args.beta_2), eps=args.eps, weight_decay=args.weight_decay)
     else:
         optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=(args.beta_1, args.beta_2), eps=args.eps, weight_decay=args.weight_decay)
         #Params used from paper, the lr is smaller, more safe for fine tuning to new dataset
