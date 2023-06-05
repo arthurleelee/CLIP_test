@@ -122,7 +122,8 @@ def main(args):
                 param.requires_grad = False
             #print("name: ", name)
             #print("requires_grad: ", param.requires_grad)
-    elif args.prompt:
+    model, preprocess = clip.load(args.image_encoder, device=device, jit=False, adapter=args.adapter, prompt=prompt_config) #Must set jit=False for training
+    if args.prompt:
         if(args.vpt_version==1):
             for name, param in model.named_parameters():
                 if(name.__contains__('visual.transformer')):
@@ -140,7 +141,7 @@ def main(args):
     
     
         
-    model, preprocess = clip.load(args.image_encoder, device=device, jit=False, adapter=args.adapter, prompt=prompt_config) #Must set jit=False for training
+    
     
     # use your own data
     image_file_list = [file_name for file_name in os.listdir(args.kitti_image_file_path)]
