@@ -3,7 +3,7 @@ import clip
 import numpy as np
 import os
 from PIL import Image
-from torchsummary import summary
+from torchinfo import summary
 from train import *
 
 sentence_mapping_id = {}
@@ -130,11 +130,15 @@ def main(args):
 
     model.float()
     for idx, batch in enumerate(valid_dataloader):
-        images, _ = batch
+        images, text = batch
         images = images.to(device)
+        text = text.to(device)
+        for name, param in model.named_parameters():
+            print("name: ", name)
+            print("requires_grad: ", param.requires_grad)
 
         if idx == 0:
-            summary(model, images, texts)
+            summary(model, input_data =[images, text])
             break
 
     preds_list = np.array([])
