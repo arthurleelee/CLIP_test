@@ -3,4 +3,4 @@ regex
 tqdm
 torch
 torchvision
-torch-summary
+torchinfo
