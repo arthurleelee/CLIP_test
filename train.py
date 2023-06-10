@@ -114,6 +114,9 @@ def main(args):
     prompt_config={'flag':False}
     if args.prompt:
         prompt_config={'flag':True,'num_token':5,'mode':'shallow', 'dropout':float(0),'prompt_dim':768}
+    
+    model, preprocess = clip.load(args.image_encoder, device=device, jit=False, adapter=args.adapter, prompt=prompt_config) #Must set jit=False for training
+    
     if args.adapter:
         for name, param in model.named_parameters():
             if "adapter" in name or "ln_final" in name or "ln_post" in name:
@@ -122,7 +125,6 @@ def main(args):
                 param.requires_grad = False
             #print("name: ", name)
             #print("requires_grad: ", param.requires_grad)
-    model, preprocess = clip.load(args.image_encoder, device=device, jit=False, adapter=args.adapter, prompt=prompt_config) #Must set jit=False for training
     if args.prompt:
         if(args.vpt_version==1):
             for name, param in model.named_parameters():
